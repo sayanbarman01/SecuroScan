@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -6,6 +7,7 @@ class LinkCheckerScreen extends StatefulWidget {
   @override
   _LinkCheckerScreenState createState() => _LinkCheckerScreenState();
 }
+
 
 class _LinkCheckerScreenState extends State<LinkCheckerScreen> {
   final TextEditingController _controller = TextEditingController();
@@ -22,30 +24,43 @@ class _LinkCheckerScreenState extends State<LinkCheckerScreen> {
     });
 
     try {
-      // Get API key from api.env
+      // Get API key from .env
       final apiKey = dotenv.env['API_KEY'];
-      if (apiKey == null) throw 'API_KEY not found in api.env';
+      if (apiKey == null) throw 'API_KEY not found in .env';
+      print("API_KEY: $apiKey"); // debugging
 
-      // Submit link for scanning
+      // Submit link to VirusTotal
       final submitResponse = await http.post(
-        Uri.parse('https://example.com/submit'),
-        body: {'url': url, 'key': apiKey},
+        Uri.parse('https://www.virustotal.com/api/v3/urls'),
+        headers: {
+          'x-apikey': apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'url=$url',
       );
 
       if (submitResponse.statusCode != 200) {
         throw 'Submit failed: ${submitResponse.body}';
       }
 
-      // Wait for scan to complete
+      final analysisId = jsonDecode(submitResponse.body)['data']['id'];
+
+      // Wait a few seconds for scan to complete
       await Future.delayed(Duration(seconds: 10));
 
       // Check scan result
       final checkResponse = await http.get(
-        Uri.parse('https://example.com/check?url=$url&key=$apiKey'),
+        Uri.parse('https://www.virustotal.com/api/v3/analyses/$analysisId'),
+        headers: {'x-apikey': apiKey},
       );
 
       if (checkResponse.statusCode == 200) {
-        setState(() => _result = checkResponse.body);
+        final data = jsonDecode(checkResponse.body);
+        final stats = data['data']['attributes']['last_analysis_stats'];
+        setState(() {
+          _result =
+              'Malicious: ${stats['malicious']}, Suspicious: ${stats['suspicious']}, Undetected: ${stats['undetected']}';
+        });
       } else {
         throw 'Check failed: ${checkResponse.body}';
       }

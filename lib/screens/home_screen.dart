@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'link_checker_screen.dart';
 import 'sms_checker_screen.dart';
-//import 'pdf_scanner_screen.dart';
+import 'pdf_scanner_screen.dart';
 import 'password_checker_screen.dart';
 import 'wifi_checker_screen.dart';
 
@@ -17,11 +17,11 @@ class HomeScreen extends StatelessWidget {
       "screen": SmsCheckerScreen(),
       "color": Colors.orange
     },
-    /*{
+    {
       "title": "📄 PDF Scanner",
       "screen": PdfScannerScreen(),
       "color": Colors.green
-    },*/
+    },
     {
       "title": "🔐 Password Strength",
       "screen": PasswordCheckerScreen(),

@@ -1,8 +1,11 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'dart:io';
 
 class PdfScannerScreen extends StatefulWidget {
   @override
@@ -11,12 +14,13 @@ class PdfScannerScreen extends StatefulWidget {
 
 class _PdfScannerScreenState extends State<PdfScannerScreen> {
   String _result = '';
-  File? _selectedFile;
+  String? _fileName;
   bool _loading = false;
 
   Future<void> _pickAndScanPdf() async {
     setState(() {
       _result = '';
+      _fileName = null;
       _loading = true;
     });
 
@@ -24,30 +28,54 @@ class _PdfScannerScreenState extends State<PdfScannerScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        withData: kIsWeb, // Web ke liye bytes chahiye
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        setState(() => _selectedFile = file);
-
+      if (result != null) {
         final apiKey = dotenv.env['API_KEY'];
-        if (apiKey == null) throw 'API_KEY not found in api.env';
+        if (apiKey == null) throw 'API_KEY not found in .env';
 
-        // Example: Upload PDF to API for scanning
-        final request = http.MultipartRequest(
-          'POST',
-          Uri.parse('https://example.com/scan-pdf'),
-        );
-        request.fields['key'] = apiKey;
-        request.files.add(await http.MultipartFile.fromPath('file', file.path));
+        if (kIsWeb) {
+          // Web
+          Uint8List fileBytes = result.files.first.bytes!;
+          String base64File = base64Encode(fileBytes);
+          _fileName = result.files.first.name;
 
-        final response = await request.send();
-        final responseBody = await response.stream.bytesToString();
+          final response = await http.post(
+            Uri.parse('https://example.com/scan-pdf'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'key': apiKey,
+              'file': base64File,
+              'name': _fileName,
+            }),
+          );
 
-        if (response.statusCode == 200) {
-          setState(() => _result = responseBody);
+          if (response.statusCode == 200) {
+            setState(() => _result = response.body);
+          } else {
+            setState(() => _result = 'Scan failed: ${response.body}');
+          }
         } else {
-          setState(() => _result = 'Scan failed: $responseBody');
+          // Mobile
+          File file = File(result.files.single.path!);
+          _fileName = file.path.split('/').last;
+
+          final request = http.MultipartRequest(
+            'POST',
+            Uri.parse('https://example.com/scan-pdf'),
+          );
+          request.fields['key'] = apiKey;
+          request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+          final response = await request.send();
+          final responseBody = await response.stream.bytesToString();
+
+          if (response.statusCode == 200) {
+            setState(() => _result = responseBody);
+          } else {
+            setState(() => _result = 'Scan failed: $responseBody');
+          }
         }
       } else {
         setState(() => _result = '❌ No file selected');
@@ -72,8 +100,8 @@ class _PdfScannerScreenState extends State<PdfScannerScreen> {
               child: Text('Select PDF and Scan'),
             ),
             SizedBox(height: 20),
-            if (_selectedFile != null)
-              Text("📄 Selected: ${_selectedFile!.path.split('/').last}"),
+            if (_fileName != null)
+              Text("📄 Selected: $_fileName"),
             SizedBox(height: 20),
             if (_loading)
               CircularProgressIndicator(),
