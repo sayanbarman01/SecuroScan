@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+/*import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -121,3 +121,4 @@ class _PdfScannerScreenState extends State<PdfScannerScreen> {
     );
   }
 }
+*/
